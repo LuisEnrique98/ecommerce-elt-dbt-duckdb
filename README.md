@@ -51,6 +51,8 @@ flowchart LR
 
 Licencia del dataset: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Este proyecto se usa con fines educativos y de portafolio, no comerciales. Los datos **no se incluyen en este repositorio**; deben descargarse desde Kaggle.
 
+Los datos originales se transforman en las capas staging y marts de este proyecto (renombrado de columnas, conversión de tipos, uniones y cálculos).
+
 El código de este repositorio se distribuye bajo licencia MIT (ver `LICENSE`). La licencia del dataset aplica únicamente a los datos.
 
 ## Estructura del repositorio
