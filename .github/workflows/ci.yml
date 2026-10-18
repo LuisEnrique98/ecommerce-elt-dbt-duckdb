@@ -1,4 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt kaggle
+
       - name: Descargar dataset
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: kaggle datasets download -d olistbr/brazilian-ecommerce -p data/raw --unzip
+
+      - name: Ingesta a DuckDB
+        run: python ingestion/ingest.py
+
+      - name: dbt run
+        working-directory: dbt_project
+        run: dbt run --profiles-dir .
+
+      - name: dbt test
+        working-directory: dbt_project
+        run: dbt test --profiles-dir .
