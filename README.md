@@ -1,7 +1,10 @@
 # ecommerce-elt-dbt-duckdb
+
+![CI](https://github.com/LuisEnrique98/ecommerce-elt-dbt-duckdb/actions/workflows/ci.yml/badge.svg)
+
 End-to-end ELT pipeline: Python ingestion, DuckDB storage and dbt transformations (dimensional model and data quality tests) on the Olist e-commerce dataset.
 
-> **Estado:** en desarrollo. Ver el [roadmap](#roadmap) para saber qué está terminado.
+> **Estado:** Pipeline funcional; dashboard en progreso. Ver el [roadmap](#roadmap) para saber qué está terminado.
 
 ## Objetivo
 
@@ -45,15 +48,13 @@ El código de este repositorio se distribuye bajo licencia MIT (ver `LICENSE`). 
 
 ```
 .
-├── data/raw/            # CSV de Olist (no versionado)
-├── ingestion/
-│   └── ingest.py        # carga los CSV a DuckDB (esquema raw)
+├── .github/workflows/ci.yml   # pipeline automático
+├── data/raw/                  # CSV (no versionado)
+├── ingestion/ingest.py
 ├── dbt_project/
-│   ├── dbt_project.yml
-│   ├── profiles.yml
-│   └── models/
-│       ├── staging/
-│       └── marts/
+│   ├── models/staging/        # 8 modelos + tests
+│   ├── models/marts/          # fct_order_items + 4 dimensiones
+│   └── tests/                 # test de clave compuesta
 ├── requirements.txt
 └── README.md
 ```
@@ -99,14 +100,24 @@ dbt test --profiles-dir .
 - **DuckDB:** no requiere servidor ni credenciales, consume poca memoria y permite reproducir el proyecto en cualquier equipo.
 - **Ingesta idempotente:** `CREATE OR REPLACE TABLE` permite relanzar la carga sin efectos secundarios.
 
+## Calidad de datos
+
+38 tests en dbt: unicidad, no nulos, integridad referencial entre tablas,
+valores aceptados y un test de clave compuesta en `order_items`.
+
+**Hallazgo:** 789 valores de `review_id` aparecen repetidos en el dataset
+original. El test está configurado como advertencia (`warn`) en staging,
+que solo refleja los datos tal como llegan; el tratamiento se define en la capa
+de negocio.
+
 ## Roadmap
 
 - [x] Entorno y estructura del repositorio
 - [x] Ingesta de los 9 CSV a DuckDB
-- [ ] Capa staging en dbt (en progreso)
-- [ ] Modelo dimensional (marts)
-- [ ] Tests de calidad de datos (unicidad, no nulos, relaciones)
-- [ ] Automatización con GitHub Actions
+- [x] Capa staging en dbt (8 modelos)
+- [x] Modelo dimensional (marts)
+- [x] Tests de calidad de datos (38 tests)
+- [x] Automatización con GitHub Actions
 - [ ] Dashboard
 - [ ] Diagrama de arquitectura
 
