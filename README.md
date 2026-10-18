@@ -4,36 +4,45 @@
 
 End-to-end ELT pipeline: Python ingestion, DuckDB storage and dbt transformations (dimensional model and data quality tests) on the Olist e-commerce dataset.
 
-> **Estado:** Pipeline funcional; dashboard en progreso. Ver el [roadmap](#roadmap) para saber qué está terminado.
+> **Estado:** pipeline funcional y automatizado con GitHub Actions. Dashboard pendiente.
 
 ## Objetivo
 
-Construir de punta a punta un flujo de datos como el de un entorno real: cargar datos crudos, limpiarlos y tipificarlos por capas, modelarlos de forma dimensional y validar su calidad, para responder preguntas de negocio de un e-commerce:
+Construir de punta a punta un flujo de datos como el de un entorno real: cargar datos crudos, ordenarlos por capas, modelarlos de forma dimensional y validar su calidad, para responder preguntas de negocio de un e-commerce:
 
 - ¿Cuánto se vende por mes y por categoría de producto?
 - ¿Qué vendedores rinden mejor y cuáles entregan tarde?
 - ¿Cuánto tarda la entrega frente a la fecha estimada?
-- ¿Qué proporción de clientes compra más de una vez?
 
 ## Arquitectura
 
-```
-CSV (Olist) → Python (ingesta) → DuckDB (esquema raw)
-            → dbt staging (limpieza y tipado)
-            → dbt marts (modelo dimensional)
-            → tests de calidad
+```mermaid
+flowchart LR
+    A[CSV de Olist] -->|Python: ingest.py| B[(DuckDB<br/>esquema raw)]
+    B -->|dbt| C[Staging<br/>8 vistas stg_*]
+    C -->|dbt| D[Marts<br/>fct_order_items + 4 dimensiones]
+    C -.->|tests| E{Calidad de datos<br/>38 tests}
+    D -.->|tests| E
+    F[GitHub Actions] -.->|ejecuta todo en cada PR| B
 ```
 
-Modelo dimensional previsto:
+| Capa | Contenido | Materialización |
+|---|---|---|
+| **raw** | Los 9 CSV cargados tal cual | Tablas |
+| **staging** | Una vista por tabla cruda: renombrado de columnas y conversión de tipos | Vistas |
+| **marts** | Modelo en estrella listo para análisis | Tablas |
 
-- **Hecho:** `fct_order_items`
-- **Dimensiones:** `dim_customers`, `dim_products`, `dim_sellers`, `dim_date`
+### Modelo dimensional
+
+- **Hecho:** `fct_order_items` (una fila por ítem vendido), con `total_item_value`, `delivery_days` e `is_late`.
+- **Dimensiones:** `dim_customers`, `dim_sellers`, `dim_products` (con categoría traducida al inglés) y `dim_date`.
 
 ## Stack
 
 - **Python** para la ingesta
 - **DuckDB** como almacén analítico local
 - **dbt-core** (adaptador `dbt-duckdb`) para transformaciones y tests
+- **GitHub Actions** para ejecutar el pipeline en cada Pull Request
 - **Git / GitHub** para control de versiones
 
 ## Dataset
@@ -49,11 +58,15 @@ El código de este repositorio se distribuye bajo licencia MIT (ver `LICENSE`). 
 ```
 .
 ├── .github/workflows/ci.yml   # pipeline automático
-├── data/raw/                  # CSV (no versionado)
-├── ingestion/ingest.py
+├── data/raw/                  # CSV de Olist (no versionado)
+├── ingestion/
+│   └── ingest.py              # carga los CSV a DuckDB (esquema raw)
 ├── dbt_project/
-│   ├── models/staging/        # 8 modelos + tests
-│   ├── models/marts/          # fct_order_items + 4 dimensiones
+│   ├── dbt_project.yml
+│   ├── profiles.yml
+│   ├── models/
+│   │   ├── staging/           # 8 modelos + tests
+│   │   └── marts/             # fct_order_items + 4 dimensiones + tests
 │   └── tests/                 # test de clave compuesta
 ├── requirements.txt
 └── README.md
@@ -85,7 +98,7 @@ python ingestion/ingest.py
 
 Crea `olist.duckdb` con el esquema `raw`. El script es idempotente: puede ejecutarse varias veces sin duplicar datos.
 
-**4. Ejecutar las transformaciones con dbt**
+**4. Ejecutar las transformaciones y los tests con dbt**
 
 ```bash
 cd dbt_project
@@ -93,22 +106,23 @@ dbt run --profiles-dir .
 dbt test --profiles-dir .
 ```
 
+El pipeline también se ejecuta automáticamente en GitHub Actions en cada Pull Request.
+
 ## Decisiones de diseño
 
 - **ELT en lugar de ETL:** los datos se cargan tal cual al esquema `raw` y la transformación ocurre dentro del almacén con dbt, lo que deja trazable cada paso.
-- **Capas separadas:** `raw` (sin tocar), `staging` (limpieza y tipado, una vista por tabla) y `marts` (modelo de negocio materializado como tablas).
+- **Capas separadas:** `raw` queda intacto; `staging` solo ordena; la lógica de negocio vive en `marts`.
+- **Granularidad a nivel de ítem:** `fct_order_items` tiene una fila por ítem vendido, lo que permite analizar por producto, categoría y vendedor.
+- **Dos identificadores de cliente:** en Olist cada pedido genera un `customer_id` nuevo y `customer_unique_id` identifica a la persona. `dim_customers` conserva ambos para poder identificar clientes recurrentes.
+- **Categorías sin traducción:** `dim_products` usa `coalesce` para conservar el nombre original cuando una categoría no tiene traducción al inglés.
 - **DuckDB:** no requiere servidor ni credenciales, consume poca memoria y permite reproducir el proyecto en cualquier equipo.
 - **Ingesta idempotente:** `CREATE OR REPLACE TABLE` permite relanzar la carga sin efectos secundarios.
 
 ## Calidad de datos
 
-38 tests en dbt: unicidad, no nulos, integridad referencial entre tablas,
-valores aceptados y un test de clave compuesta en `order_items`.
+38 tests en dbt: unicidad, no nulos, integridad referencial entre tablas, valores aceptados y un test de clave compuesta sobre `order_id` + `order_item_id`.
 
-**Hallazgo:** 789 valores de `review_id` aparecen repetidos en el dataset
-original. El test está configurado como advertencia (`warn`) en staging,
-que solo refleja los datos tal como llegan; el tratamiento se define en la capa
-de negocio.
+**Hallazgo:** 789 valores de `review_id` aparecen repetidos en el dataset original. El test está configurado como advertencia (`warn`) en staging, que refleja los datos tal como llegan. Las reseñas no forman parte del modelo dimensional actual.
 
 ## Roadmap
 
@@ -118,13 +132,13 @@ de negocio.
 - [x] Modelo dimensional (marts)
 - [x] Tests de calidad de datos (38 tests)
 - [x] Automatización con GitHub Actions
+- [x] Diagrama de arquitectura
 - [ ] Dashboard
-- [ ] Diagrama de arquitectura
 
 ## Autor
 
 **Luis Enrique Allcca Alarcón** — Data Analyst | Data Engineering  
-[LinkedIn](https://www.linkedin.com/in/linkedin.com/in/luis-enrique-allcca-alarcon) · [GitHub](https://github.com/LuisEnrique98)
+[LinkedIn](https://www.linkedin.com/in/luis-enrique-allcca-alarcon) · [GitHub](https://github.com/LuisEnrique98)
 
 ## Licencia
 
