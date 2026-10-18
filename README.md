@@ -83,10 +83,18 @@ git clone https://github.com/LuisEnrique98/ecommerce-elt-dbt-duckdb.git
 cd ecommerce-elt-dbt-duckdb
 python -m venv .venv
 .venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Linux / Mac
 pip install -r requirements.txt
 ```
 
 **2. Descargar el dataset**
+
+Crear la carpeta `data/raw/` (no viene en el repositorio):
+
+```bash
+mkdir -p data/raw             # Linux / Mac
+mkdir data\raw                # Windows
+```
 
 Descargar el ZIP desde Kaggle (enlace de la sección Dataset) y extraer los 9 archivos CSV en `data/raw/`.
 
