@@ -223,3 +223,4 @@ __marimo__/
 *.duckdb
 .env
 data/
+dbt_project/.user.yml
